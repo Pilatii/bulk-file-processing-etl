@@ -2,33 +2,31 @@ import { Process, Processor } from '@nestjs/bull';
 import type { Job } from 'bull';
 import * as fs from 'fs';
 import csv from 'csv-parser';
-import { PrismaService } from "../../prisma/prisma.service";
 import { JobService } from "../../job/job.service";
-import { plainToInstance } from "class-transformer";
-import { CreateUserDto } from "../../dto/create-user.dto";
 import { normalizeCsvKeys } from "../../common/utils/string.utils";
-import { validate } from "class-validator";
 import { countFileLines } from "../../common/utils/count-file-lines";
+import { CsvJobPayload } from "../csv/types";
+import { CsvImportStrategyResolver } from "../csv/csv-import-strategy.resolver";
 
 
 @Processor("csvQueue")
 export class CsvWorker {
-	constructor(private prisma: PrismaService, private jobService: JobService) { }
-	private readonly BATCH_SIZE = 500
+	constructor(private jobService: JobService, private csvImportStrategyResolver: CsvImportStrategyResolver) { }
 
 	@Process({ concurrency: 1 })
 	async handle(job: Job) {
-		const { filePath, jobId } = job.data
-
-		console.log(`[WORKER] Iniciando job com: ${filePath}`, fs.existsSync(filePath))
-
+		const { filePath, jobId, jobType} = job.data
 		const buffer: any[] = []
-
+	
 		let totalRows = 0
 		let currentRow = 0
 		const invalidRows: any[] = []
 
+		console.log(`[WORKER] Iniciando job com: ${filePath}`)
+
 		try {
+			const strategy = this.csvImportStrategyResolver.resolve(jobType)
+
 			if (!fs.existsSync(filePath)) {
 				await this.jobService.updateJob(jobId, { status: "FAILED", errorMesage: "Arquivo não encontrado" })
 				return
@@ -49,9 +47,9 @@ export class CsvWorker {
 				currentRow++
 
 				const row = normalizeCsvKeys(rawRow)
-				const errors = await validate(plainToInstance(CreateUserDto, row))
+				const errors = await strategy.validate(row)
 
-				if (errors.length > 0) {
+				if (errors?.length > 0) {
 					invalidRows.push({
 						row: currentRow,
 						fields: errors.map(e => e.property)
@@ -61,8 +59,8 @@ export class CsvWorker {
 
 				buffer.push(row)
 
-				if (buffer.length > this.BATCH_SIZE) {
-					await this.prisma.user.createMany({ data: buffer, skipDuplicates: true })
+				if (buffer.length > strategy.batchSize) {
+					await strategy.persist(buffer)
 					buffer.length = 0
 				}
 
@@ -73,7 +71,7 @@ export class CsvWorker {
 			}
 
 			if (buffer.length > 0) {
-				await this.prisma.user.createMany({ data: buffer, skipDuplicates: true })
+				await strategy.persist(buffer)
 			}
 
 			await this.jobService.updateJob(jobId, { status: "COMPLETED", progress: 100, invalidRows: invalidRows })

@@ -5,10 +5,4 @@ import { FileInterceptor } from "@nestjs/platform-express";
 @Controller("upload")
 export class UploadController {
 	constructor(private readonly uploadService: UploadService) { }
-
-	@Post()
-	@UseInterceptors(FileInterceptor("file"))
-	uploadCsv(@UploadedFile() file: Express.Multer.File) {
-		return this.uploadService.handleFileUpload(file)
-	}
 }

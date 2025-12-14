@@ -20,6 +20,13 @@ model User {
    email   String @unique
 }
 
+model Product {
+   id          Int     @id @default(autoincrement())
+   name        String
+   description String
+   price       Decimal
+}
+
 model Job {
    id          Int       @id @default(autoincrement())
    status      JobStatus @default(PENDING)
@@ -27,6 +34,7 @@ model Job {
    totalRows   Int       @default(0)
    errorMesage String?
    invalidRows Json?
+	entity 		String
    createdAt   DateTime  @default(now())
    updatedAt   DateTime  @updatedAt
 }
@@ -36,5 +44,5 @@ enum JobStatus {
    PROCESSING
    COMPLETED
    FAILED
-	RETRYING
+   RETRYING
 }

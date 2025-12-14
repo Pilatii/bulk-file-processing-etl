@@ -2,7 +2,7 @@ import { Injectable, BadRequestException } from '@nestjs/common';
 import { parse } from "csv-parse/sync";
 
 @Injectable()
-export class CsvValidator {
+export class CsvFileValidator {
 	validate(file: Express.Multer.File): void {
 		if (file.mimetype !== 'text/csv') throw new BadRequestException('Arquivo invalido');
 
@@ -10,6 +10,7 @@ export class CsvValidator {
 
 		try {
 			parse(file.buffer.toString("utf-8"), {
+				to_line: 5,
 				columns: false,
 				relaxColumnCount: false
 			})

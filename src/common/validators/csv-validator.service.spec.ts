@@ -1,12 +1,12 @@
 import { BadRequestException } from '@nestjs/common'
-import { CsvValidator } from './csv-validator.service'
+import { CsvFileValidator } from './csv-validator.service'
 import { Readable } from "stream"
 
 describe('CsvValidator', () => {
-	let validator: CsvValidator
+	let validator: CsvFileValidator
 
 	beforeEach(() => {
-		validator = new CsvValidator()
+		validator = new CsvFileValidator()
 	})
 
 	const baseFileMock = {

@@ -1,19 +1,20 @@
 import { BadRequestException, Injectable, InternalServerErrorException } from '@nestjs/common';
 import * as fs from 'fs';
 import * as path from 'path';
-import { CsvValidator } from "../common/validators/csv-validator.service";
+import { CsvFileValidator } from "../common/validators/csv-validator.service";
 import { JobService } from "../job/job.service";
 import { v4 as uuidv4 } from "uuid";
+import { CsvJobType } from "../queue/csv/types";
 
 @Injectable()
 export class UploadService {
-	constructor(private JobService: JobService, private csvValidator: CsvValidator) { }
+	constructor(private JobService: JobService, private csvFileValidator: CsvFileValidator) { }
 
 	async saveUploadedFile(file: Express.Multer.File): Promise<string> {
 
 		if (!file) throw new BadRequestException("Nenhum arquivo enviado")
 
-		this.csvValidator.validate(file)
+		this.csvFileValidator.validate(file)
 
 		const uploadDir = path.join(process.cwd(), "uploads")
 		const filePath = path.join(uploadDir, `${Date.now()}-${uuidv4()}`)
@@ -27,9 +28,9 @@ export class UploadService {
 		return filePath
 	}
 
-	async handleFileUpload(file: Express.Multer.File) {
+	async handleFileUpload(file: Express.Multer.File, jobType: CsvJobType) {
 		const filePath = await this.saveUploadedFile(file)
-		const jobId = await this.JobService.createJobAndEnqueueFileProcessing(filePath)
+		const jobId = await this.JobService.createJobAndEnqueueFileProcessing(filePath, jobType)
 
 		return { message: 'Arquivo enviado para processamento em background.' }
 	}

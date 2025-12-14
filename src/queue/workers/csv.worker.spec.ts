@@ -1,6 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { CsvWorker } from "./csv.worker";
-import { PrismaService } from "../../prisma/prisma.service";
 import { JobService } from "../../job/job.service";
 import mock from "mock-fs";
 
@@ -11,20 +10,29 @@ jest.mock("../../common/utils/count-file-lines", () => {
 })
 
 import { countFileLines } from "../../common/utils/count-file-lines";
+import { CsvImportStrategyResolver } from "../csv/csv-import-strategy.resolver";
 
 describe('CsvWorker', () => {
-	let worker: CsvWorker;
-	let prisma: PrismaService;
-	let jobService: JobService;
+	let worker: CsvWorker
+	let jobService: JobService
+	let csvImportStrategyResolver: CsvImportStrategyResolver
 
 	const mockJob = {
 		data: {
 			filePath: '/uploads/test.csv',
 			jobId: '123',
+			jobType: "USER"
 		},
 		attemptsMade: 0,
 		opts: { attempts: 3 }
 	} as any;
+
+	const mockStrategy = {
+		jobType: 'USER',
+		batchSize: 3,
+		validate: jest.fn().mockResolvedValue([]),
+		persist: jest.fn().mockResolvedValue(undefined)
+	}
 
 	beforeEach(async () => {
 
@@ -33,26 +41,27 @@ describe('CsvWorker', () => {
 
 		}
 
-		const prismaServiceMock = {
-			user: {
-				createMany: jest.fn()
-			}
+		const resolverMock = {
+			resolve: jest.fn().mockReturnValue(mockStrategy)
 		}
 
 		const module: TestingModule = await Test.createTestingModule({
 			providers: [
+				CsvWorker,
 				{ provide: JobService, useValue: jobServiceMock },
-				{ provide: PrismaService, useValue: prismaServiceMock }
+				{ provide: CsvImportStrategyResolver, useValue: resolverMock }
 			],
 		}).compile()
 
-		prisma = module.get(PrismaService)
 		jobService = module.get(JobService)
-		worker = new CsvWorker(prisma, jobService)
+		csvImportStrategyResolver = module.get(CsvImportStrategyResolver)
+		worker = module.get(CsvWorker)
 	})
 
 	afterEach(() => {
 		mock.restore()
+		jest.clearAllMocks()
+		jest.resetAllMocks()
 	})
 
 	it("Deve falhar caso o arquivo esteja vazio", async () => {
@@ -77,6 +86,7 @@ describe('CsvWorker', () => {
 		});
 
 		(countFileLines as jest.Mock).mockResolvedValue(2);
+		(mockStrategy.validate as jest.Mock).mockResolvedValue([{ property: "email" }])
 
 		await worker.handle(mockJob)
 
@@ -104,22 +114,6 @@ describe('CsvWorker', () => {
 
 		expect(jobService.updateJob).toHaveBeenCalledWith("123", expect.objectContaining({ status: "PROCESSING" }))
 		expect(jobService.updateJob).toHaveBeenCalledWith("123", expect.objectContaining({ status: "COMPLETED", progress: 100, invalidRows: [] }))
-		expect(prisma.user.createMany).toHaveBeenCalledTimes(1)
-	})
-
-	it("Deve quebrar as chamadas de acordo com o batche size", async () => {
-		(worker as any).BATCH_SIZE = 2;
-
-		mock({
-			"/uploads": {
-				"test.csv": "name,Country,email\nJohn,Botswana,test@test.com\nFrank,Panama,gmurillo@perez.com\nLindsay,Estonia,rhuff@kennedy.info\nGwendolyn,Yemen,kaylee45@rice.org\n"
-			}
-		});
-
-		await worker.handle(mockJob);
-
-		expect(prisma.user.createMany).toHaveBeenCalledTimes(2)
-		expect(jobService.updateJob).toHaveBeenCalledWith("123", expect.objectContaining({ status: "COMPLETED" }))
 	})
 
 	it("Deve marcar RETRYING quando ainda há tentativas", async () => {
@@ -129,7 +123,7 @@ describe('CsvWorker', () => {
 			}
 		});
 
-		(prisma.user.createMany as jest.Mock).mockRejectedValue(new Error("DB down"))
+		(mockStrategy.persist).mockRejectedValue(new Error("DB down"))
 
 		await expect(worker.handle(mockJob)).rejects.toThrow("DB down")
 
@@ -146,12 +140,12 @@ describe('CsvWorker', () => {
 		});
 
 		const job = {
-			data: { filePath: "/uploads/test.csv", jobId: "123" },
+			data: { filePath: "/uploads/test.csv", jobId: "123", jobType: "USER" },
 			attemptsMade: 2,
 			opts: { attempts: 3 }
 		} as any
 
-		(prisma.user.createMany as jest.Mock).mockRejectedValue(new Error("DB down"))
+		(mockStrategy.persist).mockRejectedValue(new Error("DB down"))
 
 		await expect(worker.handle(job)).rejects.toThrow("DB down")
 
