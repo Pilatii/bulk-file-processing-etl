@@ -1,0 +1,15 @@
+-- CreateEnum
+CREATE TYPE "JobStatus" AS ENUM ('PENDING', 'PROCESSING', 'COMPLETED', 'FAILED');
+
+-- CreateTable
+CREATE TABLE "Job" (
+    "id" SERIAL NOT NULL,
+    "status" "JobStatus" NOT NULL DEFAULT 'PENDING',
+    "progress" INTEGER NOT NULL DEFAULT 0,
+    "totalRows" INTEGER NOT NULL DEFAULT 0,
+    "processed" INTEGER NOT NULL DEFAULT 0,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "Job_pkey" PRIMARY KEY ("id")
+);

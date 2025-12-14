@@ -1,0 +1,63 @@
+version: '3.8'
+
+services:
+  api:
+    build: .  
+    container_name: nest-api
+    command: >
+      sh -c "
+      until pg_isready -h postgres -p 5432; do sleep 1; done &&
+      npx prisma migrate deploy &&
+      node dist/main.api.js
+      "
+    ports:
+      - "3000:3000"
+      - "51212:51212"
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      DATABASE_URL: postgres://postgres:123456@postgres:5432/nestdb
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - uploads:/app/uploads
+
+  worker:
+    build: .
+    command: >
+      sh -c "
+      until pg_isready -h postgres -p 5432; do sleep 1; done &&
+      node dist/main.worker.js
+      "
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      DATABASE_URL: postgres://postgres:123456@postgres:5432/nestdb
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - uploads:/app/uploads
+
+  postgres:
+    image: postgres:15
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: "123456"
+      POSTGRES_DB: nestdb
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+    restart: always
+
+volumes:
+  postgres_data:
+  uploads:
