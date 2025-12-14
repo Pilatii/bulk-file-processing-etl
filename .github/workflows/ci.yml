@@ -23,6 +23,9 @@ jobs:
       - name: Instalar dependências
         run: npm ci
 
+      - name: Generate Prisma Client
+        run: npx prisma generate
+
       - name: Build do projeto
         run: npm run build
 
