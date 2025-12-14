@@ -19,7 +19,7 @@ describe('CsvWorker', () => {
 
 	const mockJob = {
 		data: {
-			filePath: '/tmp/test.csv',
+			filePath: '/uploads/test.csv',
 			jobId: '123',
 		},
 		attemptsMade: 0,
@@ -57,7 +57,7 @@ describe('CsvWorker', () => {
 
 	it("Deve falhar caso o arquivo esteja vazio", async () => {
 		mock({
-			"/tmp": {
+			"/uploads": {
 				"test.csv": ""
 			}
 		});
@@ -71,7 +71,7 @@ describe('CsvWorker', () => {
 
 	it("Deve marcar linhas inválidas", async () => {
 		mock({
-			"/tmp": {
+			"/uploads": {
 				"test.csv": "name,Country,email\nJohn,Botswana,testtest.com\n"
 			}
 		});
@@ -93,7 +93,7 @@ describe('CsvWorker', () => {
 
 	it("Deve processar CSV válido e salvar batches", async () => {
 		mock({
-			"/tmp": {
+			"/uploads": {
 				"test.csv": "name,Country,email\nJohn,Botswana,test@test.com\n"
 			}
 		});
@@ -111,7 +111,7 @@ describe('CsvWorker', () => {
 		(worker as any).BATCH_SIZE = 2;
 
 		mock({
-			"/tmp": {
+			"/uploads": {
 				"test.csv": "name,Country,email\nJohn,Botswana,test@test.com\nFrank,Panama,gmurillo@perez.com\nLindsay,Estonia,rhuff@kennedy.info\nGwendolyn,Yemen,kaylee45@rice.org\n"
 			}
 		});
@@ -124,7 +124,7 @@ describe('CsvWorker', () => {
 
 	it("Deve marcar RETRYING quando ainda há tentativas", async () => {
 		mock({
-			"/tmp": {
+			"/uploads": {
 				"test.csv": "name,Country,email\nJohn,Botswana,test@test.com\n"
 			}
 		});
@@ -140,13 +140,13 @@ describe('CsvWorker', () => {
 
 	it("Deve marcar FAILED na última tentativa", async () => {
 		mock({
-			"/tmp": {
+			"/uploads": {
 				"test.csv": "name,Country,email\nJohn,Botswana,test@test.com\n"
 			}
 		});
 
 		const job = {
-			data: { filePath: "/tmp/test.csv", jobId: "123" },
+			data: { filePath: "/uploads/test.csv", jobId: "123" },
 			attemptsMade: 2,
 			opts: { attempts: 3 }
 		} as any
