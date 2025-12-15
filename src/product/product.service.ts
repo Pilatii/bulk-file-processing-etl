@@ -6,9 +6,10 @@ export class ProductService {
 	constructor(private prisma: PrismaService) {}
 
 	async getProduct(id: number) {
-		const product = this.prisma.product.findUnique({
+		const product = await this.prisma.product.findUnique({
 			where: { id }
 		})
+		console.log(product)
 
 		if (!product) throw new NotFoundException("Produto não encontrado")
 
