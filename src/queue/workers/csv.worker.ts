@@ -23,6 +23,8 @@ export class CsvWorker {
 		const invalidRows: any[] = []
 
 		console.log(`[WORKER] Iniciando job com: ${filePath}`)
+		//Adicionar uma validação para caso o arquivo seja completamente invalido, talez limitar a quantidade de linhas com erro? Ou aluma outra verificação inicial
+		// Fazer commit do swegger antes de iniciar
 
 		try {
 			const strategy = this.csvImportStrategyResolver.resolve(jobType)
