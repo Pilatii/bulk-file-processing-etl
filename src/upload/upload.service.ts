@@ -1,20 +1,20 @@
 import { BadRequestException, Injectable, InternalServerErrorException } from '@nestjs/common';
 import * as fs from 'fs';
 import * as path from 'path';
-import { CsvFileValidator } from "../common/validators/csv-validator.service";
+import { FileValidator } from "../common/validators/file-validator.service";
 import { JobService } from "../job/job.service";
 import { v4 as uuidv4 } from "uuid";
-import { CsvJobType } from "../queue/csv/types";
+import { JobEntity } from "@prisma/client";
 
 @Injectable()
 export class UploadService {
-	constructor(private JobService: JobService, private csvFileValidator: CsvFileValidator) { }
+	constructor(private JobService: JobService, private csvFileValidator: FileValidator) { }
 
 	async saveUploadedFile(file: Express.Multer.File): Promise<string> {
 
-		if (!file) throw new BadRequestException("Nenhum arquivo enviado")
+		
 
-		this.csvFileValidator.validate(file)
+		this.csvFileValidator.validateCsv(file)
 
 		const uploadDir = path.join(process.cwd(), "uploads")
 		const filePath = path.join(uploadDir, `${Date.now()}-${uuidv4()}`)
@@ -28,9 +28,12 @@ export class UploadService {
 		return filePath
 	}
 
-	async handleFileUpload(file: Express.Multer.File, jobType: CsvJobType) {
+	async handleFileUpload(file: Express.Multer.File, jobEntity: JobEntity) {
+		if (!file) throw new BadRequestException("Nenhum arquivo enviado")
+		
 		const filePath = await this.saveUploadedFile(file)
-		const jobId = await this.JobService.createJobAndEnqueueFileProcessing(filePath, jobType)
+
+		const jobId = await this.JobService.createJobAndEnqueueFileProcessing(filePath, jobEntity)
 
 		return { message: 'Arquivo enviado para processamento em background.' }
 	}

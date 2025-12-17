@@ -1,8 +1,8 @@
 import { ValidationError } from "class-validator";
-import { CsvJobType } from "./types";
+import { JobEntity } from "@prisma/client";
 
 export interface CsvImportStrategy<T> {
-	readonly jobType: CsvJobType
+	readonly jobEntity: JobEntity
 	batchSize: number;
 	validate(row: unknown): Promise<ValidationError[]>;
 	persist(data: T[]): Promise<void>;

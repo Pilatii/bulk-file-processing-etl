@@ -2,7 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { JobService } from '../job.service';
 import { getQueueToken } from "@nestjs/bull";
 import { PrismaService } from "../../prisma/prisma.service";
-import { CsvJobType } from "../../queue/csv/types";
+import { JobEntity } from "@prisma/client";
 
 describe('JobService', () => {
 	let service: JobService;
@@ -35,7 +35,7 @@ describe('JobService', () => {
 	});
 
 	it("Deve criar um novo job", async () => {
-		const result = await service.createJob(CsvJobType.USER)
+		const result = await service.createJob(JobEntity.USER)
 
 		expect(result).toEqual({ id: 1, status: "PENDING" })
 		expect(prismaMock.job.create).toHaveBeenCalled()
@@ -67,7 +67,7 @@ describe('JobService', () => {
 	})
 
 	it("Deve criar um job e registra na fila", async () => {
-		const result = await service.createJobAndEnqueueFileProcessing('/tmp/test.csv', CsvJobType.USER);
+		const result = await service.createJobAndEnqueueFileProcessing('/tmp/test.csv', JobEntity.USER);
 
 		expect(result).toBe(1)
 		expect(prismaMock.job.create).toHaveBeenCalled()

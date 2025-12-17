@@ -3,6 +3,7 @@
 /node_modules
 /build
 tsconfig.build.tsbuildinfo
+uploads/*.csv
 
 # Logs
 logs

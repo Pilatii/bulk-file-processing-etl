@@ -3,7 +3,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from "@prisma/client";
 import type { Queue } from "bull";
 import { PrismaService } from "../prisma/prisma.service";
-import { CsvJobType } from "../queue/csv/types";
+import { JobEntity } from "@prisma/client";
 
 @Injectable()
 export class JobService {
@@ -27,11 +27,11 @@ export class JobService {
 		return jobs
 	}
 
-	async createJob(jobType: CsvJobType) {
+	async createJob(jobEntity: JobEntity) {
 		return this.prisma.job.create({
 			data: {
 				status: "PENDING",
-				entity: jobType
+				entity: jobEntity
 			}
 		})
 	}
@@ -52,13 +52,15 @@ export class JobService {
 		}
 	}
 
-	async createJobAndEnqueueFileProcessing(filePath: string, jobType: CsvJobType) {
-		const job = await this.createJob(jobType)
+	async createJobAndEnqueueFileProcessing(filePath: string, jobEntity: JobEntity) {
+		const job = await this.createJob(jobEntity)
 
 		await this.csvQueue.add(
-			{ filePath, jobId: job.id, jobType: jobType },
+			{ filePath, jobId: job.id, jobEntity: jobEntity },
 			{ attempts: 3 }
 		)
+
+		await this.updateJob(job.id, { status: "QUEUED" })
 
 		return job.id
 	}

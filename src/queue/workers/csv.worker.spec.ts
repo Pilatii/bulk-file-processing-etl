@@ -3,6 +3,7 @@ import { CsvWorker } from "./csv.worker";
 import { JobService } from "../../job/job.service";
 import mock from "mock-fs";
 
+
 jest.mock("../../common/utils/count-file-lines", () => {
 	return {
 		countFileLines: jest.fn()
@@ -21,14 +22,14 @@ describe('CsvWorker', () => {
 		data: {
 			filePath: '/uploads/test.csv',
 			jobId: '123',
-			jobType: "USER"
+			jobEntity: "USER"
 		},
 		attemptsMade: 0,
 		opts: { attempts: 3 }
 	} as any;
 
 	const mockStrategy = {
-		jobType: 'USER',
+		jobEntity: 'USER',
 		batchSize: 3,
 		validate: jest.fn().mockResolvedValue([]),
 		persist: jest.fn().mockResolvedValue(undefined)
@@ -140,7 +141,7 @@ describe('CsvWorker', () => {
 		});
 
 		const job = {
-			data: { filePath: "/uploads/test.csv", jobId: "123", jobType: "USER" },
+			data: { filePath: "/uploads/test.csv", jobId: "123", JobEntity: "USER" },
 			attemptsMade: 2,
 			opts: { attempts: 3 }
 		} as any

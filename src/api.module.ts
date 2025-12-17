@@ -5,6 +5,7 @@ import { JobModule } from "./job/job.module";
 import { QueueProducerModule } from "./queue/queue-producer.module";
 import { UserModule } from './user/user.module';
 import { ProductModule } from './product/product.module';
+import { FileImportModule } from './file-import/file-import.module';
 
 @Module({
 	imports: [
@@ -13,7 +14,8 @@ import { ProductModule } from './product/product.module';
 		JobModule,
 		QueueProducerModule,
 		UserModule,
-		ProductModule
+		ProductModule,
+		FileImportModule
 	]
 })
 export class ApiModule { }

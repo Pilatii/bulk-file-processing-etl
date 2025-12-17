@@ -5,7 +5,6 @@ import csv from 'csv-parser';
 import { JobService } from "../../job/job.service";
 import { normalizeCsvKeys } from "../../common/utils/string.utils";
 import { countFileLines } from "../../common/utils/count-file-lines";
-import { CsvJobPayload } from "../csv/types";
 import { CsvImportStrategyResolver } from "../csv/csv-import-strategy.resolver";
 
 
@@ -15,19 +14,23 @@ export class CsvWorker {
 
 	@Process({ concurrency: 1 })
 	async handle(job: Job) {
-		const { filePath, jobId, jobType} = job.data
+		const { filePath, jobId, jobEntity } = job.data
+
 		const buffer: any[] = []
-	
+		const MAX_ERRORS = 50
+
+		let errorStream: fs.WriteStream | null = null
+		let errorFilePath: string | null = null
+
+		let success = false
+		let errorCount = 0
 		let totalRows = 0
 		let currentRow = 0
-		const invalidRows: any[] = []
 
 		console.log(`[WORKER] Iniciando job com: ${filePath}`)
-		//Adicionar uma validação para caso o arquivo seja completamente invalido, talez limitar a quantidade de linhas com erro? Ou aluma outra verificação inicial
-		// Fazer commit do swegger antes de iniciar
 
 		try {
-			const strategy = this.csvImportStrategyResolver.resolve(jobType)
+			const strategy = this.csvImportStrategyResolver.resolve(jobEntity)
 
 			if (!fs.existsSync(filePath)) {
 				await this.jobService.updateJob(jobId, { status: "FAILED", errorMesage: "Arquivo não encontrado" })
@@ -36,14 +39,56 @@ export class CsvWorker {
 
 			totalRows = await countFileLines(filePath)
 
-			if (totalRows <= 0) {
-				await this.jobService.updateJob(jobId, { status: "FAILED", errorMesage: "Arquivo vazio" })
+			await this.jobService.updateJob(jobId, { status: "VALIDATING", totalRows: totalRows })
+
+			// Inicia validação do arquivo
+			const validationStream = fs.createReadStream(filePath).pipe(csv())
+
+			for await (const rawRow of validationStream) {
+				currentRow++
+
+				const row = normalizeCsvKeys(rawRow)
+				const errors = await strategy.validate(row)
+
+				if (errors?.length > 0) {
+					errorCount++
+
+					if (!errorStream) {
+						errorFilePath = `uploads/errors-${jobId}.csv`
+						errorStream = fs.createWriteStream(errorFilePath)
+						errorStream.write('Linha,Coluna\n')
+					}
+
+					errorStream.write(
+						`${currentRow},"${errors.map(e => e.property).join(',')}"\n`
+					)
+
+					if (errorCount >= MAX_ERRORS) {
+						break
+					}
+				}
+			}
+
+			if (errorStream) {
+				errorStream.end()
+			}
+
+			if (errorCount >= MAX_ERRORS) {
+				await this.jobService.updateJob(jobId, {
+					status: 'FAILED',
+					errorMesage: `Mais de ${MAX_ERRORS} linhas inválidas`,
+					errorFilePath
+				})
+
+				success = true
 				return
 			}
 
-			await this.jobService.updateJob(jobId, { status: "PROCESSING", totalRows: totalRows })
+			await this.jobService.updateJob(jobId, { status: "PROCESSING" })
 
+			// Inicia persistencia na DB
 			const stream = fs.createReadStream(filePath).pipe(csv())
+			currentRow = 0
 
 			for await (const rawRow of stream) {
 				currentRow++
@@ -52,10 +97,6 @@ export class CsvWorker {
 				const errors = await strategy.validate(row)
 
 				if (errors?.length > 0) {
-					invalidRows.push({
-						row: currentRow,
-						fields: errors.map(e => e.property)
-					})
 					continue
 				}
 
@@ -76,23 +117,26 @@ export class CsvWorker {
 				await strategy.persist(buffer)
 			}
 
-			await this.jobService.updateJob(jobId, { status: "COMPLETED", progress: 100, invalidRows: invalidRows })
+			await this.jobService.updateJob(jobId, { status: "COMPLETED", errorFilePath, progress: 100 })
+			success = true
 
 		} catch (error: any) {
 			const isLastAttempt = job.attemptsMade + 1 >= (job?.opts?.attempts ?? 1)
 
-			if (isLastAttempt) { 
+			if (isLastAttempt) {
 				await this.jobService.updateJob(jobId, { status: "FAILED", errorMesage: error.message || "Erro desconhecido" })
-				
+
 			} else {
 				await this.jobService.updateJob(jobId, { status: "RETRYING", errorMesage: error.message || "Erro ineperado, iniciando nova tentativa..." })
-				
+
 			}
 
 			throw error
 
 		} finally {
-			if (fs.existsSync(filePath)) {
+			const isLastAttempt = job.attemptsMade + 1 >= (job?.opts?.attempts ?? 1)
+
+			if ((isLastAttempt || success) && fs.existsSync(filePath)) {
 				await fs.promises.unlink(filePath)
 			}
 		}

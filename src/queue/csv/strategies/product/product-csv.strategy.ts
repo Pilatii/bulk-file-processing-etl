@@ -3,13 +3,13 @@ import { CsvImportStrategy } from "../../csv-import.strategy";
 import { PrismaService } from "../../../../prisma/prisma.service";
 import { plainToInstance } from "class-transformer";
 import { validate, ValidationError } from "class-validator";
-import { CsvJobType } from "../../types";
+import { JobEntity } from "@prisma/client";
 import { CreateProductDto } from "./create-product.dto";
 
 @Injectable()
 export class ProductCsvImportStrategy implements CsvImportStrategy<CreateProductDto> {
 	batchSize = 500
-	readonly jobType = CsvJobType.PRODUCT
+	readonly jobEntity = JobEntity.PRODUCT
 
 	constructor(private readonly prisma: PrismaService) { }
 

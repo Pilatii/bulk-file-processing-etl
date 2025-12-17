@@ -4,12 +4,12 @@ import { CreateUserDto } from "./create-user.dto";
 import { PrismaService } from "../../../../prisma/prisma.service";
 import { plainToInstance } from "class-transformer";
 import { validate, ValidationError } from "class-validator";
-import { CsvJobType } from "../../types";
+import { JobEntity } from "@prisma/client";
 
 @Injectable()
 export class UserCsvImportStrategy implements CsvImportStrategy<CreateUserDto> {
 	batchSize = 500
-	readonly jobType = CsvJobType.USER
+	readonly jobEntity = JobEntity.USER
 
 	constructor(private readonly prisma: PrismaService) { }
 

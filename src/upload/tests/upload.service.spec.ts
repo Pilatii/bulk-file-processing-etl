@@ -5,8 +5,8 @@ import * as fs from "fs";
 import path from "path";
 import { Readable } from "stream";
 import { BadRequestException, InternalServerErrorException } from "@nestjs/common";
-import { CsvFileValidator } from "../../common/validators/csv-validator.service";
-import { CsvJobType } from "../../queue/csv/types";
+import { CsvFileValidator } from "../../common/validators/file-validator.service";
+import { JobEntity } from "@prisma/client";
 
 describe('UploadService', () => {
 	let service: UploadService;
@@ -64,7 +64,7 @@ describe('UploadService', () => {
 	it("Deve salvar o arquvio no disco", async () => {
 		const writeSpy = jest.spyOn(fs.promises, "writeFile")
 
-		await service.handleFileUpload(fileMock, CsvJobType.USER)
+		await service.handleFileUpload(fileMock, JobEntity.USER)
 		expect(writeSpy).toHaveBeenCalledTimes(1)
 
 		const [savedPath, buffer] = writeSpy.mock.calls[0]
@@ -76,7 +76,7 @@ describe('UploadService', () => {
 
 	it('Deve enviar o job para fila', async () => {
 
-		const result = await service.handleFileUpload(fileMock, CsvJobType.USER)
+		const result = await service.handleFileUpload(fileMock, JobEntity.USER)
 
 		expect(jobServiceMock.createJobAndEnqueueFileProcessing).toHaveBeenCalled()
 
