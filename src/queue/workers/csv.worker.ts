@@ -6,6 +6,8 @@ import { JobService } from "../../job/job.service";
 import { normalizeCsvKeys } from "../../common/utils/string.utils";
 import { countFileLines } from "../../common/utils/count-file-lines";
 import { CsvImportStrategyResolver } from "../csv/csv-import-strategy.resolver";
+import { CsvImportStrategy } from "../csv/csv-import.strategy";
+import { JobContext } from "./type";
 
 
 @Processor("csvQueue")
@@ -16,16 +18,13 @@ export class CsvWorker {
 	async handle(job: Job) {
 		const { filePath, jobId, jobEntity } = job.data
 
-		const buffer: any[] = []
-		const MAX_ERRORS = 50
-
-		let errorStream: fs.WriteStream | null = null
-		let errorFilePath: string | null = null
-
-		let success = false
-		let errorCount = 0
-		let totalRows = 0
-		let currentRow = 0
+		const jobContext: JobContext = {
+			filePath,
+			jobId,
+			success: false,
+			totalRows: 0,
+			errorFilePath: null
+		}
 
 		console.log(`[WORKER] Iniciando job com: ${filePath}`)
 
@@ -37,89 +36,27 @@ export class CsvWorker {
 				return
 			}
 
-			totalRows = await countFileLines(filePath)
+			jobContext.totalRows = await countFileLines(filePath)
 
-			await this.jobService.updateJob(jobId, { status: "VALIDATING", totalRows: totalRows })
+			const validation = await this.runValidationPhase(jobContext, strategy)
 
-			// Inicia validação do arquivo
-			const validationStream = fs.createReadStream(filePath).pipe(csv())
-
-			for await (const rawRow of validationStream) {
-				currentRow++
-
-				const row = normalizeCsvKeys(rawRow)
-				const errors = await strategy.validate(row)
-
-				if (errors?.length > 0) {
-					errorCount++
-
-					if (!errorStream) {
-						errorFilePath = `uploads/errors/errors-${jobId}.csv`
-						errorStream = fs.createWriteStream(errorFilePath)
-						errorStream.write('Linha,Coluna\n')
-					}
-
-					errorStream.write(
-						`${currentRow},"${errors.map(e => e.property).join(',')}"\n`
-					)
-
-					if (errorCount >= MAX_ERRORS) {
-						break
-					}
-				}
-			}
-
-			if (errorStream) {
-				errorStream.end()
-			}
-
-			if (errorCount >= MAX_ERRORS) {
+			if (validation.hasFatalErrors) {
 				await this.jobService.updateJob(jobId, {
 					status: 'FAILED',
-					errorMesage: `Mais de ${MAX_ERRORS} linhas inválidas`,
-					errorFilePath
+					errorMesage: `Mais de 50 linhas inválidas`,
+					errorFilePath: jobContext.errorFilePath
 				})
 
-				success = true
+				jobContext.success = true
 				return
 			}
 
 			await this.jobService.updateJob(jobId, { status: "PROCESSING" })
 
-			// Inicia persistencia na DB
-			const stream = fs.createReadStream(filePath).pipe(csv())
-			currentRow = 0
+			await this.runProcessingPhase(jobContext, strategy)
 
-			for await (const rawRow of stream) {
-				currentRow++
-
-				const row = normalizeCsvKeys(rawRow)
-
-				//Filtra linhas invalidas (Se chegou nesse ponto tem menos de 50 linhas invalidas)
-				const errors = await strategy.validate(row)
-				if (errors?.length > 0) {
-					continue
-				}
-
-				buffer.push(row)
-
-				if (buffer.length > strategy.batchSize) {
-					await strategy.persist(buffer)
-					buffer.length = 0
-				}
-
-				if (currentRow % 100 === 0) {
-					const progress = Math.floor((currentRow / totalRows) * 100)
-					await this.jobService.updateJob(jobId, { progress: progress })
-				}
-			}
-
-			if (buffer.length > 0) {
-				await strategy.persist(buffer)
-			}
-
-			await this.jobService.updateJob(jobId, { status: "COMPLETED", errorFilePath, progress: 100 })
-			success = true
+			await this.jobService.updateJob(jobId, { status: "COMPLETED", errorFilePath: jobContext.errorFilePath, progress: 100 })
+			jobContext.success = true
 
 		} catch (error: any) {
 			const isLastAttempt = job.attemptsMade + 1 >= (job?.opts?.attempts ?? 1)
@@ -137,9 +74,86 @@ export class CsvWorker {
 		} finally {
 			const isLastAttempt = job.attemptsMade + 1 >= (job?.opts?.attempts ?? 1)
 
-			if ((isLastAttempt || success) && fs.existsSync(filePath)) {
+			if ((isLastAttempt || jobContext.success) && fs.existsSync(filePath)) {
 				await fs.promises.unlink(filePath)
 			}
+		}
+	}
+
+	private async runValidationPhase(jobContext: JobContext, strategy: CsvImportStrategy<unknown>): Promise<{ hasFatalErrors: boolean }> {
+		const MAX_ERRORS = 50
+		let errorStream: fs.WriteStream | null = null
+
+		let currentRow = 0
+		let errorCount = 0
+
+		await this.jobService.updateJob(jobContext.jobId, { status: "VALIDATING", totalRows: jobContext.totalRows })
+
+		const validationStream = fs.createReadStream(jobContext.filePath).pipe(csv())
+
+		for await (const rawRow of validationStream) {
+			currentRow++
+
+			const row = normalizeCsvKeys(rawRow)
+			const errors = await strategy.validate(row)
+
+			if (errors?.length > 0) {
+				errorCount++
+
+				if (!errorStream) {
+					jobContext.errorFilePath = `uploads/errors/errors-${jobContext.jobId}.csv`
+					errorStream = fs.createWriteStream(jobContext.errorFilePath)
+					errorStream.write('Linha,Coluna\n')
+				}
+
+				errorStream.write(
+					`${currentRow},"${errors.map(e => e.property).join(',')}"\n`
+				)
+
+				if (errorCount >= MAX_ERRORS) {
+					break
+				}
+			}
+		}
+
+		errorStream?.end()
+
+		return { hasFatalErrors: errorCount >= MAX_ERRORS }
+	}
+
+	private async runProcessingPhase(jobContext: JobContext, strategy: CsvImportStrategy<unknown>) {
+		const buffer: any[] = []
+		let currentRow = 0
+
+		const stream = fs.createReadStream(jobContext.filePath).pipe(csv())
+		currentRow = 0
+
+		for await (const rawRow of stream) {
+			currentRow++
+
+			const row = normalizeCsvKeys(rawRow)
+
+			//Filtra linhas invalidas (Se chegou nesse ponto tem menos de 50 linhas invalidas)
+			const errors = await strategy.validate(row)
+			if (errors?.length > 0) {
+				continue
+			}
+
+			buffer.push(row)
+
+			if (buffer.length > strategy.batchSize) {
+				await strategy.persist(buffer)
+				buffer.length = 0
+			}
+
+			if (currentRow % 100 === 0) {
+				const progress = Math.floor((currentRow / jobContext.totalRows) * 100)
+				await this.jobService.updateJob(jobContext.jobId, { progress: progress })
+			}
+		}
+
+		if (buffer.length > 0) {
+			await strategy.persist(buffer)
 		}
 	}
 }
