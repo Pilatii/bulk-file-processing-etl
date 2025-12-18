@@ -15,7 +15,10 @@ export class UserCsvImportStrategy implements CsvImportStrategy<CreateUserDto> {
 
 	async validate(row: unknown): Promise<ValidationError[]> {
 		const dto = plainToInstance(CreateUserDto, row)
-		const errors = await validate(dto)
+		const errors = await validate(dto, {
+			whitelist: true,
+			forbidNonWhitelisted: true
+		})
 
 		return errors
 	}

@@ -15,7 +15,10 @@ export class ProductCsvImportStrategy implements CsvImportStrategy<CreateProduct
 
 	async validate(row: unknown): Promise<ValidationError[]> {
 		const dto = plainToInstance(CreateProductDto, row)
-		const errors = await validate(dto)
+		const errors = await validate(dto, {
+			whitelist: true,
+			forbidNonWhitelisted: true
+		})
 
 		return errors
 	}
