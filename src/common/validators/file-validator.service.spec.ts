@@ -1,6 +1,7 @@
 import { BadRequestException } from '@nestjs/common'
 import { FileValidator } from './file-validator.service'
 import { Readable } from "stream"
+import { rejects } from "assert"
 
 describe('CsvValidator', () => {
 	let validator: FileValidator
@@ -27,7 +28,7 @@ describe('CsvValidator', () => {
 			buffer: Buffer.from("id,name\n1,Gabriel")
 		} as Express.Multer.File
 
-		expect(() => validator.validateCsv(file)).toThrow(BadRequestException)
+		expect(() => validator.validateCsv(file)).rejects.toThrow(BadRequestException)
 	})
 
 	it("Deve lançar erro quando extensão não for .csv", () => {
@@ -38,7 +39,7 @@ describe('CsvValidator', () => {
 			buffer: Buffer.from("id,name\n1,Gabriel")
 		} as Express.Multer.File
 
-		expect(() => validator.validateCsv(file)).toThrow(BadRequestException)
+		expect(() => validator.validateCsv(file)).rejects.toThrow(BadRequestException)
 	})
 
 	it("Deve lançar erro quando CSV tiver erros de parsing", () => {
@@ -49,7 +50,7 @@ describe('CsvValidator', () => {
 			buffer: Buffer.from("id,name\n1,Gabriel,ExtraColumn")
 		} as Express.Multer.File
 
-		expect(() => validator.validateCsv(file)).toThrow(BadRequestException)
+		expect(() => validator.validateCsv(file)).rejects.toThrow(BadRequestException)
 	})
 
 	it("Não deve lançar erro quando o CSV for válido", () => {

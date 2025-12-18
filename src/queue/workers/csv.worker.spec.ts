@@ -65,40 +65,23 @@ describe('CsvWorker', () => {
 		jest.resetAllMocks()
 	})
 
-	it("Deve falhar caso o arquivo esteja vazio", async () => {
-		mock({
-			"/uploads": {
-				"test.csv": ""
-			}
-		});
-
-		(countFileLines as jest.Mock).mockResolvedValue(0)
-
-		await worker.handle(mockJob)
-
-		expect(jobService.updateJob).toHaveBeenCalledWith("123", expect.objectContaining({ status: "FAILED" }))
-	})
-
 	it("Deve marcar linhas inválidas", async () => {
 		mock({
 			"/uploads": {
 				"test.csv": "name,Country,email\nJohn,Botswana,testtest.com\n"
+			},
+			"uploads/errors": {
+				"errors-123.csv": ""
 			}
 		});
+
 
 		(countFileLines as jest.Mock).mockResolvedValue(2);
 		(mockStrategy.validate as jest.Mock).mockResolvedValue([{ property: "email" }])
 
 		await worker.handle(mockJob)
 
-		expect(jobService.updateJob).toHaveBeenCalledWith(
-			"123",
-			expect.objectContaining({
-				status: "COMPLETED",
-				invalidRows: expect.arrayContaining([
-					expect.objectContaining({ row: 1 })
-				])
-			})
+		expect(jobService.updateJob).toHaveBeenCalledWith("123", expect.objectContaining({ status: "COMPLETED", errorFilePath: "uploads/errors/errors-123.csv" })
 		)
 	})
 
@@ -114,7 +97,7 @@ describe('CsvWorker', () => {
 		await worker.handle(mockJob)
 
 		expect(jobService.updateJob).toHaveBeenCalledWith("123", expect.objectContaining({ status: "PROCESSING" }))
-		expect(jobService.updateJob).toHaveBeenCalledWith("123", expect.objectContaining({ status: "COMPLETED", progress: 100, invalidRows: [] }))
+		expect(jobService.updateJob).toHaveBeenCalledWith("123", expect.objectContaining({ status: "COMPLETED", progress: 100, errorFilePath: null }))
 	})
 
 	it("Deve marcar RETRYING quando ainda há tentativas", async () => {

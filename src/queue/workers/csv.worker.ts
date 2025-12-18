@@ -54,7 +54,7 @@ export class CsvWorker {
 					errorCount++
 
 					if (!errorStream) {
-						errorFilePath = `uploads/errors-${jobId}.csv`
+						errorFilePath = `uploads/errors/errors-${jobId}.csv`
 						errorStream = fs.createWriteStream(errorFilePath)
 						errorStream.write('Linha,Coluna\n')
 					}
@@ -94,8 +94,9 @@ export class CsvWorker {
 				currentRow++
 
 				const row = normalizeCsvKeys(rawRow)
-				const errors = await strategy.validate(row)
 
+				//Filtra linhas invalidas (Se chegou nesse ponto tem menos de 50 linhas invalidas)
+				const errors = await strategy.validate(row)
 				if (errors?.length > 0) {
 					continue
 				}

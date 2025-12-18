@@ -6,20 +6,20 @@ import * as fs from 'fs'
 
 @Injectable()
 export class FileImportService {
-	constructor(private JobService: JobService, private FileValidator: FileValidator) { }
+	constructor(private jobService: JobService, private fileValidator: FileValidator) { }
 
 	async handleFileImport(file: Express.Multer.File, entity: JobEntity) {
 		try {
 			if (!file) throw new BadRequestException("Nenhum arquivo enviado")
 
-			await this.FileValidator.validateCsv(file)
+			await this.fileValidator.validateCsv(file)
 
-			await this.JobService.createJobAndEnqueueFileProcessing(file.path, entity)
+			await this.jobService.createJobAndEnqueueFileProcessing(file.path, entity)
 
 			return { message: "Arquivo enviado para processamento em background." }
 
 		} catch (error) {
-			if (fs.existsSync(file.path)) {
+			if (fs.existsSync(file?.path)) {
 				await fs.promises.unlink(file.path)
 			}
 

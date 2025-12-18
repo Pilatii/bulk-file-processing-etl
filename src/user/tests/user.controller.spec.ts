@@ -1,18 +1,12 @@
 import { Test, TestingModule } from '@nestjs/testing'
 import { UserController } from '../user.controller'
 import { UserService } from '../user.service'
-import { UploadService } from "src/upload/upload.service"
 import { PrismaService } from "src/prisma/prisma.service"
 
 describe('UserController', () => {
 	let controller: UserController
 
 	beforeEach(async () => {
-
-		const uploadServiceMock = {
-			handleFileUpload: jest.fn()
-		}
-
 		const prismaMock = {
 			user: {
 				findFirst: jest.fn()
@@ -23,7 +17,6 @@ describe('UserController', () => {
 			controllers: [UserController],
 			providers: [
 				UserService,
-				{ provide: UploadService, useValue: uploadServiceMock},
 				{ provide: PrismaService, useValue: prismaMock}
 			]
 		}).compile()
