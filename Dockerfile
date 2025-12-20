@@ -7,7 +7,7 @@ RUN npm ci
 
 RUN apk add --no-cache postgresql-client
 
-COPY prisma ./prisma
+COPY src/prisma ./prisma
 RUN npx prisma generate
 
 COPY . .
